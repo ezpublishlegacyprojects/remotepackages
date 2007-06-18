@@ -1,0 +1,14 @@
+table.remote_packages td.version-current
+{
+    color: green;
+}
+
+table.remote_packages td.version-lower
+{
+    color: blue;
+}
+
+table.remote_packages td.version-higher
+{
+    color: red;
+}
