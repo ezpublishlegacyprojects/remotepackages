@@ -1,0 +1,3 @@
+[RemotepackagesSettings]
+RepositoryID=myserver
+RepositoryPath=var/storage/packages
