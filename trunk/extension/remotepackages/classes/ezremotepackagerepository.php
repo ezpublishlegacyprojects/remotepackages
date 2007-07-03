@@ -55,11 +55,12 @@ class eZRemotePackageRepository
 
         $root = $domDocument->root();
 
-        if ( $root->name() != 'packages' )
+        if ( $root->name() != 'repository' )
         {
             return 2;
         }
-
+        $this->repositoryID = $root->getAttribute( 'repository-id' );
+        $this->repositoryURL = $root->getAttribute( 'repository-url' );
         $packageList = array();
         foreach ( $root->children() as $packageNode )
         {
@@ -68,15 +69,16 @@ class eZRemotePackageRepository
                 // skip unwanted chilren
                 continue;
             }
-
+            $dom = new eZDOMDocument();
+            $dom->setRoot( $packageNode );
+            $package = new eZPackage();
+            $parameters = $package->parseDOMTree( $dom );
             if ( is_array( $types ) && !in_array( $packageNode->getAttribute( 'type' ), $types ) )
             {
                 // skip packages of unwanted types
                 continue;
             }
-
-            $packageAttributes = $packageNode->attributeValues();
-            $packageList[$packageAttributes['name']] = $packageAttributes;
+            $packageList[] = $package;
         }
 
         return 0;
@@ -226,7 +228,7 @@ class eZRemotePackageRepository
      * \private
      * \return false on error, package object otherwise.
      */
-    function downloadAndImportPackage( $packageName, $packageUrl, $forceDownload = false )
+    function downloadAndImportPackage( $packageName, $version, $forceDownload = false )
     {
         include_once( 'kernel/classes/ezpackage.php' );
         $package = eZPackage::fetch( $packageName, false, false, false );
@@ -243,8 +245,8 @@ class eZRemotePackageRepository
                 return $package;
             }
         }
-
-        $archiveName = $this->downloadFile( $packageUrl, /* $outDir = */ eZRemotePackageRepository::tempDir() );
+        $packageUrl = $this->repositoryURL. '/' . $packageName . '/' . $version;
+        $archiveName = $this->downloadFile( $packageUrl, eZRemotePackageRepository::tempDir() );
         if ( $archiveName === false )
         {
             eZDebug::writeWarning( "Download of package '$packageName' from '$packageUrl' failed: $this->ErrorMsg" );
@@ -350,7 +352,8 @@ class eZRemotePackageRepository
 
         return true;
     }
-
+    var $repositoryID;
+    var $repositoryURL;
     var $IndexURL;
     var $FileOpenErrorMsg = false;
 }

@@ -120,12 +120,14 @@
     <th>Type</th>
     <th>Summary</th>
 </tr>
-{foreach $list as $package sequence array('bglight','bgdark') as $sequence}
+{foreach $list as $key => $package sequence array('bglight','bgdark') as $sequence}
 <tr class="{$sequence}">
-    <td><input type="checkbox" name="PackageNameArray[]" value="{$package.name|wash}" /></td>
+    <td>
+       <input type="checkbox" name="PackageNameArray[{$package.name}][{$package.version-number|wash}-{$package.release-number|wash}]" value="{$package.name|wash}" />
+    </td>
     <td>{$package.name|wash}</td>
-    <td class="{switch match=$package.status}{case match=1}version-lower{/case}{case match=2}version-current{/case}{case match=3}version-higher{/case}{/switch}">{*{$package.status}&nbsp;&nbsp;&nbsp;*}{$package.version|wash}</td>
-    <td>{if $package.local}<a href={concat("/package/view/full/",$package.name|wash)|ezurl}>{$package.local.version-number}-{$package.local.release-number}</a>{/if}</td>
+    <td class="{switch match=$package.status}{case match=1}version-lower{/case}{case match=2}version-current{/case}{case match=3}version-higher{/case}{/switch}">{$package.version-number|wash}-{$package.release-number|wash}</td>
+    <td>{if $local_list.[$package.name]}<a href={concat("/package/view/full/",$package.name|wash)|ezurl}>{$local_list.[$package.name].version-number}-{$local_list.[$package.name].release-number}</a>{/if}</td>
     <td>{$package.type|wash}</td>
     <td>{$package.summary|wash}</td>
 </tr>

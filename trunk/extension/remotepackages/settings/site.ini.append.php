@@ -1,0 +1,2 @@
+[RoleSettings]
+PolicyOmitList[]=remotepackages/server

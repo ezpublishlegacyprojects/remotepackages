@@ -15,7 +15,7 @@ $ViewList['list'] = array(
 
 $ViewList['server'] = array(
     'script' => 'server.php',
-    'params' => array()
+    'params' => array( 'PackageName', 'Version' )
 );
 
 $ViewList['history'] = array(
