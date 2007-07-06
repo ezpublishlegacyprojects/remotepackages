@@ -1,0 +1,193 @@
+Index: ezpm.php
+===================================================================
+--- ezpm.php	(revision 18670)
++++ ezpm.php	(working copy)
+@@ -63,6 +63,7 @@
+                   "  -l,--login USER      login with USER and use it for all operations\n" .
+                   "  -p,--password PWD    use PWD as password for USER\n" .
+                   "  -r,--repos REPOS     use REPOS for repository when accessing packages\n" .
++                  "  --repos-path PATH    use PATH for path to package repository\n" .
+                   "  --db-type TYPE       set type of db to use\n" .
+                   "  --db-name NAME       set name of db to use\n" .
+                   "  --db-user USER       set database user\n" .
+@@ -367,6 +368,10 @@
+             {
+                 $userPassword = $optionData;
+             }
++            else if ( $flag == 'repos-path' )
++            {
++                $repositoryPath = $optionData;
++            }
+             else if ( $flag == 'repos' )
+             {
+                 $repositoryID = $optionData;
+@@ -767,7 +772,11 @@
+ $alreadyCreated = false;
+ 
+ $createdPackages = array();
+-
++if ( $repositoryID and $repositoryPath )
++{
++    $cli->error( "Please only use option repos or repos-path, but not both at the same time." );
++    $script->shutdown( 1 );
++}
+ foreach ( $commandList as $commandItem )
+ {
+     $command = $commandItem['command'];
+@@ -782,6 +791,8 @@
+         }
+         else
+              $cli->output( "The list of all packages:" );
++        if ( $repositoryPath )
++            $fetchParameters['path'] = $repositoryPath;
+ 
+         $packages = eZPackage::fetchPackages( $fetchParameters );
+         if ( count( $packages ) > 0 )
+@@ -799,8 +810,10 @@
+     {
+         if ( isset( $createdPackages[$commandItem['name']] ) )
+             $package =& $createdPackages[$commandItem['name']];
++        else if ( $repositoryPath )
++            $package = eZPackage::fetch( $commandItem['name'], $repositoryPath );
+         else
+-            $package = eZPackage::fetch( $commandItem['name'] );
++            $package = eZPackage::fetch( $commandItem['name'], false, $repositoryID );
+         if ( $package )
+         {
+             $showInfo = false;
+@@ -855,8 +868,10 @@
+     {
+         if ( isset( $createdPackages[$commandItem['name']] ) )
+             $package =& $createdPackages[$commandItem['name']];
++        else if ( $repositoryPath )
++            $package = eZPackage::fetch( $commandItem['name'], $repositoryPath );
+         else
+-            $package = eZPackage::fetch( $commandItem['name'] );
++            $package = eZPackage::fetch( $commandItem['name'], false, $repositoryID );
+         if ( $package )
+         {
+             $itemType = $commandItem['item'];
+@@ -927,8 +942,10 @@
+         {
+             if ( isset( $createdPackages[$commandItem['name']] ) )
+                 $package =& $createdPackages[$commandItem['name']];
++            else if ( $repositoryPath )
++                $package = eZPackage::fetch( $commandItem['name'], $repositoryPath );
+             else
+-                $package = eZPackage::fetch( $commandItem['name'] );
++                $package = eZPackage::fetch( $commandItem['name'], false, $repositoryID );
+             if ( $package )
+             {
+                 switch ( $commandItem['attribute'] )
+@@ -1015,8 +1032,10 @@
+     {
+         if ( isset( $createdPackages[$commandItem['name']] ) )
+             $package =& $createdPackages[$commandItem['name']];
++        else if ( $repositoryPath )
++            $package = eZPackage::fetch( $commandItem['name'], $repositoryPath );
+         else
+-            $package = eZPackage::fetch( $commandItem['name'] );
++            $package = eZPackage::fetch( $commandItem['name'], false, $repositoryID );
+         if ( $package )
+         {
+             if ( isset( $commandItem['export-directory'] ) )
+@@ -1049,10 +1068,21 @@
+     {
+         if ( $alreadyCreated )
+             $cli->output();
+-        $package = eZPackage::create( $commandItem['name'],
++            
++        if ( $repositoryPath )
++        {
++            $cli->output( "Created new repository directory: " . $repositoryID );
++            eZDir::mkdir( $repositoryID, 0777);
++            $package = eZPackage::create( $commandItem['name'],
+                                       array( 'summary' => $commandItem['summary'] ),
++                                      $repositoryPath, false );
++        }
++        else
++        {
++            $package = eZPackage::create( $commandItem['name'],
++                                      array( 'summary' => $commandItem['summary'] ),
+                                       false, $repositoryID );
+-
++        }
+         require_once( 'kernel/classes/datatypes/ezuser/ezuser.php' );
+         $user =& eZUser::currentUser();
+         $userObject = $user->attribute( 'contentobject' );
+@@ -1087,4 +1117,4 @@
+ 
+ $script->shutdown();
+ 
+-?>
++?>
+\ No newline at end of file
+Index: kernel/classes/ezpackage.php
+===================================================================
+--- kernel/classes/ezpackage.php	(revision 18670)
++++ kernel/classes/ezpackage.php	(working copy)
+@@ -1383,9 +1383,15 @@
+                 continue;
+             $path = $packageRepository['path'];
+ 
+-            $path .= '/' . $packageName;
+-            $filePath = $path . '/' . eZPackage::definitionFilename();
+-
++            if ( !is_dir( $path . '/' . $packageName ) )
++            {
++                $filePath = $path . '/' . eZPackage::definitionFilename();
++            }
++            else 
++            {
++                $path .= '/' . $packageName;
++                $filePath = $path . '/' . eZPackage::definitionFilename();
++            }
+             if ( file_exists( $filePath ) )
+             {
+                 $fileModification = filemtime( $filePath );
+@@ -1501,7 +1507,8 @@
+ //         $path = eZPackage::repositoryPath();
+ //        $path = $this->RepositoryPath;
+         $path = $this->currentRepositoryPath();
+-        $path .= '/' . $this->attribute( 'name' );
++        if ( is_dir( $path . '/' . $this->attribute( 'name' ) ) )
++            $path .= '/' . $this->attribute( 'name' );
+         return $path;
+     }
+ 
+@@ -1690,6 +1697,11 @@
+             if ( $packageRepository['id'] == $repositoryID )
+                 return $packageRepository;
+         }
++        if ( is_dir( $repositoryID ) )
++        {
++            $packageRepositories = eZPackage::packageRepositories( array( 'path' => $repositoryID ) );
++            return $packageRepositories[0];
++        }
+         return false;
+     }
+ 
+@@ -1752,20 +1764,10 @@
+                 $path = $packageRepository['path'];
+                 if ( file_exists( $path ) )
+                 {
+-                    $fileList = array();
+-                    $dir = opendir( $path );
+-                    while( ( $file = readdir( $dir ) ) !== false )
++                    $fileList = eZDir::recursiveFind( $path, eZPackage::definitionFilename() );
++                    foreach ( $fileList as $filePath )
+                     {
+-                        if ( $file == '.' or
+-                             $file == '..' )
+-                            continue;
+-                        $fileList[] = $file;
+-                    }
+-                    closedir( $dir );
+-                    sort( $fileList );
+-                    foreach ( $fileList as $file )
+-                    {
+-                        $dirPath = $path . '/' . $file;
++                        $dirPath = eZDir::dirpath( $filePath );
+                         if ( !is_dir( $dirPath ) )
+                             continue;
+                         $filePath = $dirPath . '/' . eZPackage::definitionFilename();
